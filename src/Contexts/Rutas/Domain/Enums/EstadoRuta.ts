@@ -1,0 +1,8 @@
+
+export enum EstadoRuta {
+    PLANIFICADA = "PLANIFICADA",
+    OPTIMIZANDO = "OPTIMIZANDO",
+    ACTIVA = "ACTIVA",
+    COMPLETADA = "COMPLETADA",
+    CANCELADA = "CANCELADA",
+}

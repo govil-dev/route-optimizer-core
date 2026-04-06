@@ -1,0 +1,8 @@
+
+export enum EstadoPaquete {
+    PENDIENTE = "PENDIENTE",
+    ASIGNADO = "ASIGNADO",
+    EN_TRANSITO = "EN_TRANSITO",
+    ENTREGADO = "ENTREGADO",
+    CANCELADO = "CANCELADO",
+}

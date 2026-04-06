@@ -1,0 +1,9 @@
+{
+  "project_code": "SWB-LOG-OPT",
+  "project_name": "SwiftBox Route Optimizer Core",
+  "language": "TypeScript",
+  "project_id": "e4e61b73-10c2-4293-aec4-988110a0e155",
+  "repo_url": "https://github.com/govil-dev/route-optimizer-core.git",
+  "default_branch": "main",
+  "framework": "NestJS"
+}
