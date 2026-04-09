@@ -1,127 +1,128 @@
-
 import { AggregateRoot } from "../../../../Shared/Domain/AggregateRoot";
-import { EstadoRuta } from "../Enums/EstadoRuta";
-import { EstadoInvalidoRutaException } from "../Exceptions/EstadoInvalidoRutaException";
-import { CondicionTrafico } from "../ValueObjects/CondicionTrafico";
-import { Distancia } from "../ValueObjects/Distancia";
-import { Duracion } from "../ValueObjects/Duracion";
-import { Parada } from "../ValueObjects/Parada";
-import { PaqueteId } from "../ValueObjects/PaqueteId";
 import { RutaId } from "../ValueObjects/RutaId";
-import { SegmentoRuta } from "../ValueObjects/SegmentoRuta";
-import { VehiculoId } from "../ValueObjects/VehiculoId";
-import { CapacidadVehiculoExcedidaException } from "../Exceptions/CapacidadVehiculoExcedidaException";
-import { ViolacionRestriccionRutaException } from "../Exceptions/ViolacionRestriccionRutaException";
-import { Paquete } from "../Entities/Paquete";
+import { Parada } from "../ValueObjects/Parada";
+import { EstadoRuta } from "../Enums/EstadoRuta";
 import { Vehiculo } from "../Entities/Vehiculo";
+import { VehiculoId } from "../ValueObjects/VehiculoId";
+import { EstadoVehiculo } from "../Enums/EstadoVehiculo";
+import { RutaYaTieneVehiculoException } from "../Exceptions/RutaYaTieneVehiculoException";
+import { EstadoInvalidoRutaException } from "../Exceptions/EstadoInvalidoRutaException";
+import { EstadoInvalidoVehiculoException } from "../Exceptions/EstadoInvalidoVehiculoException";
+import { CapacidadVehiculoExcedidaException } from "../Exceptions/CapacidadVehiculoExcedidaException";
+import { Paquete } from "../Entities/Paquete";
+import { PaqueteId } from "../ValueObjects/PaqueteId";
+import { PaqueteNoEncontradoException } from "../Exceptions/PaqueteNoEncontradoException";
+import { PaqueteYaAsignadoException } from "../Exceptions/PaqueteYaAsignadoException";
 
-interface RutaProps {
-  vehiculoId: VehiculoId;
-  paradas: Parada[];
-  horaInicioEstimada: Date;
-  horaFinEstimada: Date;
-  distanciaTotalEstimada: Distancia;
-  duracionTotalEstimada: Duracion;
-  estado: EstadoRuta;
-}
+export class Ruta extends AggregateRoot<RutaId> {
+    private paradas: Parada[];
+    private paquetes: Paquete[];
+    private estado: EstadoRuta;
+    private vehiculoId?: VehiculoId;
+    private fechaCreacion: Date;
+    private fechaSalida?: Date;
+    private fechaLlegada?: Date;
 
-export class Ruta extends AggregateRoot<RutaProps> {
-  private constructor(props: RutaProps, id?: RutaId) {
-    super(props, id);
-  }
-
-  public static create(props: RutaProps, id?: RutaId): Ruta {
-    // Las validaciones complejas se realizan a través de los métodos de comportamiento.
-    return new Ruta(props, id);
-  }
-
-  get id(): RutaId {
-    return this._id as RutaId;
-  }
-
-  get vehiculoId(): VehiculoId {
-    return this.props.vehiculoId;
-  }
-
-  get paradas(): Readonly<Parada[]> {
-    return this.props.paradas;
-  }
-
-  get estado(): EstadoRuta {
-    return this.props.estado;
-  }
-
-  // --- Comportamiento y Reglas de Negocio ---
-
-  public agregarParada(parada: Parada, paquete: Paquete, vehiculo: Vehiculo, paquetesEnRuta: Paquete[]): void {
-    if (this.estado !== EstadoRuta.PLANIFICADA && this.estado !== EstadoRuta.OPTIMIZANDO) {
-      throw new Error("Solo se pueden agregar paradas a rutas en estado de planificación u optimización.");
+    constructor(id: RutaId, paradas: Parada[], paquetes: Paquete[] = []) {
+        super(id);
+        this.paradas = paradas;
+        this.paquetes = paquetes;
+        this.estado = EstadoRuta.PLANIFICADA;
+        this.fechaCreacion = new Date();
     }
 
-    // Validar que el paquete no esté ya en la ruta
-    if (this.props.paradas.some(p => p.paqueteId.equals(parada.paqueteId))) {
-        throw new ViolacionRestriccionRutaException(`El paquete ${parada.paqueteId} ya está en la ruta.`);
+    // --- Getters ---
+    public getParadas(): Parada[] {
+        return this.paradas;
     }
 
-    // Validar capacidad del vehículo
-    const pesoTotal = paquetesEnRuta.reduce((sum, p) => sum + p.peso, 0) + paquete.peso;
-    const volumenTotal = paquetesEnRuta.reduce((sum, p) => sum + p.volumen, 0) + paquete.volumen;
-
-    if (pesoTotal > vehiculo.capacidadMaximaPeso || volumenTotal > vehiculo.capacidadMaximaVolumen) {
-      throw new CapacidadVehiculoExcedidaException("La adición del paquete excede la capacidad del vehículo.");
+    public getPaquetes(): Paquete[] {
+        return this.paquetes;
     }
 
-    // Validar ventana de tiempo (simplificado, una implementación real requeriría recalcular toda la ruta)
-    if (parada.horaLlegadaEstimada > paquete.ventanaEntrega.fin) {
-        throw new ViolacionRestriccionRutaException(`La hora de llegada estimada para el paquete ${paquete.id} está fuera de su ventana de entrega.`);
+    public getEstado(): EstadoRuta {
+        return this.estado;
     }
 
-    this.props.paradas.push(parada);
-    // Nota: En un caso real, se debería recalcular la ruta (tiempos, distancias) aquí.
-  }
-
-  public eliminarParada(paqueteId: PaqueteId): void {
-    if (this.estado !== EstadoRuta.PLANIFICADA && this.estado !== EstadoRuta.OPTIMIZANDO) {
-        throw new Error("Solo se pueden eliminar paradas de rutas en estado de planificación u optimización.");
+    public getVehiculoId(): VehiculoId | undefined {
+        return this.vehiculoId;
     }
-    const index = this.props.paradas.findIndex(p => p.paqueteId.equals(paqueteId));
-    if (index === -1) {
-      throw new Error(`El paquete con ID ${paqueteId} no se encontró en las paradas de la ruta.`);
-    }
-    this.props.paradas.splice(index, 1);
-    // Nota: En un caso real, se debería recalcular la ruta (tiempos, distancias) aquí.
-  }
 
-  public recalcularRuta(condicionesTrafico: Map<SegmentoRuta, CondicionTrafico>): void {
-    // Lógica para recalcular `horaFinEstimada`, `distanciaTotalEstimada`, `duracionTotalEstimada`
-    // Esta es una operación compleja que dependería de un servicio externo o un algoritmo.
-    // Por simplicidad, aquí solo se simula la actualización.
-    console.log("Recalculando ruta con condiciones de tráfico:", condicionesTrafico);
-    // this.props.duracionTotalEstimada = ...
-    // this.props.horaFinEstimada = ...
-  }
+    // --- Lógica de Dominio ---
 
-  public activarRuta(): void {
-    if (this.props.estado !== EstadoRuta.PLANIFICADA) {
-      throw new EstadoInvalidoRutaException(this.props.estado, EstadoRuta.ACTIVA);
-    }
-    this.props.estado = EstadoRuta.ACTIVA;
-    // this.addDomainEvent(new RutaActivadaEvent(this.id));
-  }
+    public asignarVehiculo(vehiculo: Vehiculo): void {
+        if (this.estado !== EstadoRuta.PLANIFICADA) {
+            throw new EstadoInvalidoRutaException(`No se puede asignar un vehículo a una ruta en estado '${this.estado}'`);
+        }
+        if (this.vehiculoId) {
+            throw new RutaYaTieneVehiculoException(`La ruta ${this.id.getValue()} ya tiene asignado el vehículo ${this.vehiculoId.getValue()}`);
+        }
+        if (vehiculo.getEstado() !== EstadoVehiculo.DISPONIBLE) {
+            throw new EstadoInvalidoVehiculoException(`El vehículo ${vehiculo.id.getValue()} no está disponible`);
+        }
 
-  public completarRuta(): void {
-    if (this.props.estado !== EstadoRuta.ACTIVA) {
-      throw new EstadoInvalidoRutaException(this.props.estado, EstadoRuta.COMPLETADA);
-    }
-    this.props.estado = EstadoRuta.COMPLETADA;
-    // this.addDomainEvent(new RutaCompletadaEvent(this.id));
-  }
+        const pesoTotalPaquetes = this.paquetes.reduce((total, pkg) => total + pkg.getDimensiones().peso, 0);
+        if (pesoTotalPaquetes > vehiculo.getCapacidad()) {
+            throw new CapacidadVehiculoExcedidaException(`La capacidad del vehículo ${vehiculo.id.getValue()} (${vehiculo.getCapacidad()} kg) es menor que el peso total de los paquetes (${pesoTotalPaquetes} kg)`);
+        }
 
-  public cancelarRuta(): void {
-    if (this.props.estado === EstadoRuta.COMPLETADA) {
-      throw new EstadoInvalidoRutaException(this.props.estado, EstadoRuta.CANCELADA);
+        this.vehiculoId = vehiculo.id;
+        this.estado = EstadoRuta.ASIGNADA;
+        vehiculo.marcarEnRuta();
     }
-    this.props.estado = EstadoRuta.CANCELADA;
-    // this.addDomainEvent(new RutaCanceladaEvent(this.id));
-  }
+
+    public agregarPaquete(paquete: Paquete): void {
+        if (this.estado !== EstadoRuta.PLANIFICADA) {
+            throw new EstadoInvalidoRutaException("Solo se pueden agregar paquetes a rutas en estado 'PLANIFICADA'");
+        }
+        if (this.paquetes.some(p => p.id.equals(paquete.id))) {
+            throw new PaqueteYaAsignadoException(`El paquete ${paquete.id.getValue()} ya está en esta ruta.`);
+        }
+        this.paquetes.push(paquete);
+    }
+
+    public iniciarRuta(): void {
+        if (this.estado !== EstadoRuta.ASIGNADA) {
+            throw new EstadoInvalidoRutaException("La ruta debe estar en estado 'ASIGNADA' para poder iniciarla.");
+        }
+        if (!this.vehiculoId) {
+            throw new EstadoInvalidoRutaException("No se puede iniciar una ruta sin un vehículo asignado.");
+        }
+        this.estado = EstadoRuta.EN_CURSO;
+        this.fechaSalida = new Date();
+        this.paquetes.forEach(p => p.marcarEnTransito());
+    }
+
+    public completarRuta(): void {
+        if (this.estado !== EstadoRuta.EN_CURSO) {
+            throw new EstadoInvalidoRutaException("Solo se pueden completar rutas que están 'EN_CURSO'.");
+        }
+        this.estado = EstadoRuta.COMPLETADA;
+        this.fechaLlegada = new Date();
+    }
+
+    public cancelarRuta(): void {
+        if (this.estado === EstadoRuta.COMPLETADA || this.estado === EstadoRuta.CANCELADA) {
+            throw new EstadoInvalidoRutaException(`No se puede cancelar una ruta en estado '${this.estado}'.`);
+        }
+        this.estado = EstadoRuta.CANCELADA;
+        this.paquetes.forEach(p => p.marcarPendiente());
+    }
+
+    public marcarPaqueteEntregado(paqueteId: PaqueteId): void {
+        const paquete = this.findPaquete(paqueteId);
+        paquete.marcarEntregado();
+    }
+
+    private findPaquete(paqueteId: PaqueteId): Paquete {
+        const paquete = this.paquetes.find(p => p.id.equals(paqueteId));
+        if (!paquete) {
+            throw new PaqueteNoEncontradoException(`El paquete con ID ${paqueteId.getValue()} no se encuentra en esta ruta.`);
+        }
+        return paquete;
+    }
+
+    public static create(id: RutaId, paradas: Parada[], paquetes: Paquete[]): Ruta {
+        return new Ruta(id, paradas, paquetes);
+    }
 }

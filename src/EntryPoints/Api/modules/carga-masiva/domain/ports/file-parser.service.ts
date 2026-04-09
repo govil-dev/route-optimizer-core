@@ -1,0 +1,7 @@
+import { PackageDataDto } from "../../application/dtos/cargar-paquetes-masivamente.input";
+
+export const IFileParserServiceToken = "IFileParserService";
+
+export interface IFileParserService {
+    parse(fileContent: string): Promise<PackageDataDto[]>;
+}

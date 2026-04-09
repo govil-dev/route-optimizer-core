@@ -1,68 +1,65 @@
-
 import { Entity } from "../../../../Shared/Domain/Entity";
+import { VehiculoId } from "../ValueObjects/VehiculoId";
+import { Ubicacion } from "../ValueObjects/Ubicacion";
 import { EstadoVehiculo } from "../Enums/EstadoVehiculo";
 import { EstadoInvalidoVehiculoException } from "../Exceptions/EstadoInvalidoVehiculoException";
-import { Ubicacion } from "../ValueObjects/Ubicacion";
-import { VehiculoId } from "../ValueObjects/VehiculoId";
 
-interface VehiculoProps {
-  matricula: string;
-  capacidadMaximaPeso: number;
-  capacidadMaximaVolumen: number;
-  ubicacionActual: Ubicacion;
-  estado: EstadoVehiculo;
-}
+export class Vehiculo extends Entity<VehiculoId> {
+    private placa: string;
+    private capacidad: number; // en kg
+    private ubicacionActual: Ubicacion;
+    private estado: EstadoVehiculo;
 
-export class Vehiculo extends Entity<VehiculoProps> {
-  private constructor(props: VehiculoProps, id?: VehiculoId) {
-    super(props, id);
-  }
-
-  public static create(props: VehiculoProps, id?: VehiculoId): Vehiculo {
-    if (props.capacidadMaximaPeso <= 0 || props.capacidadMaximaVolumen <= 0) {
-      throw new Error("Las capacidades del vehículo deben ser positivas.");
-    }
-    return new Vehiculo(props, id);
-  }
-
-  get id(): VehiculoId {
-    return this._id as VehiculoId;
-  }
-
-  get matricula(): string {
-    return this.props.matricula;
-  }
-
-  get capacidadMaximaPeso(): number {
-    return this.props.capacidadMaximaPeso;
-  }
-
-  get capacidadMaximaVolumen(): number {
-    return this.props.capacidadMaximaVolumen;
-  }
-
-  get ubicacionActual(): Ubicacion {
-    return this.props.ubicacionActual;
-  }
-
-  get estado(): EstadoVehiculo {
-    return this.props.estado;
-  }
-
-  public actualizarUbicacion(nuevaUbicacion: Ubicacion): void {
-    this.props.ubicacionActual = nuevaUbicacion;
-  }
-
-  public cambiarEstado(nuevoEstado: EstadoVehiculo): void {
-    // Aquí se podrían añadir reglas de transición más complejas si fuera necesario.
-    // Por ejemplo, un vehículo no puede pasar de FUERA_DE_SERVICIO a EN_RUTA directamente.
-    if (this.props.estado === nuevoEstado) return;
-
-    // Ejemplo de regla simple:
-    if (this.props.estado === EstadoVehiculo.FUERA_DE_SERVICIO && nuevoEstado === EstadoVehiculo.EN_RUTA) {
-        throw new EstadoInvalidoVehiculoException(this.props.estado, nuevoEstado);
+    constructor(id: VehiculoId, placa: string, capacidad: number, ubicacionActual: Ubicacion) {
+        super(id);
+        this.placa = placa;
+        this.capacidad = capacidad;
+        this.ubicacionActual = ubicacionActual;
+        this.estado = EstadoVehiculo.DISPONIBLE;
     }
 
-    this.props.estado = nuevoEstado;
-  }
+    // --- Getters ---
+    public getPlaca(): string {
+        return this.placa;
+    }
+
+    public getCapacidad(): number {
+        return this.capacidad;
+    }
+
+    public getUbicacionActual(): Ubicacion {
+        return this.ubicacionActual;
+    }
+
+    public getEstado(): EstadoVehiculo {
+        return this.estado;
+    }
+
+    // --- Lógica de Dominio ---
+    public actualizarUbicacion(nuevaUbicacion: Ubicacion): void {
+        this.ubicacionActual = nuevaUbicacion;
+    }
+
+    public marcarEnRuta(): void {
+        if (this.estado !== EstadoVehiculo.DISPONIBLE) {
+            throw new EstadoInvalidoVehiculoException(`No se puede poner en ruta un vehículo en estado '${this.estado}'`);
+        }
+        this.estado = EstadoVehiculo.EN_RUTA;
+    }
+
+    public marcarDisponible(): void {
+        // Se podría añadir lógica para verificar si realmente puede pasar a disponible
+        this.estado = EstadoVehiculo.DISPONIBLE;
+    }
+
+    public marcarMantenimiento(): void {
+        if (this.estado === EstadoVehiculo.EN_RUTA) {
+            throw new EstadoInvalidoVehiculoException("No se puede poner en mantenimiento un vehículo que está en ruta.");
+        }
+        this.estado = EstadoVehiculo.EN_MANTENIMIENTO;
+    }
+
+    public static create(id: VehiculoId, placa: string, capacidad: number, ubicacion: Ubicacion): Vehiculo {
+        return new Vehiculo(id, placa, capacidad, ubicacion);
+    }
 }
