@@ -7,4 +7,5 @@ export interface IFileParserService {
 
     parseCsv(fileContent: string): Promise<PackageDataDto[]>;
     parseJson(fileContent: string): Promise<PackageDataDto[]>;
+    parseXml(fileContent: string): Promise<PackageDataDto[]>;
 }
