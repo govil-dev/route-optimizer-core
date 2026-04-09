@@ -5,4 +5,5 @@ export class PaqueteConCoordenadasInvalidasException extends DomainException {
         super(message);
         this.name = "PaqueteConCoordenadasInvalidasException";
     }
+
 }
